@@ -164,8 +164,17 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         <div className="flex gap-2">
-          <button onClick={onReset} className="flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:text-red-400 transition-colors">
-            <Settings className="w-3 h-3" /> System Reset
+          <button
+            onClick={() => alert("System Settings: \n- Audio: ON\n- Haptics: ON\n- Notifications: ENABLED\n(Advanced configuration coming in v2.1)")}
+            className="flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+          >
+            <Settings className="w-3 h-3" /> System
+          </button>
+          <button
+            onClick={onReset}
+            className="flex-1 flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+          >
+            Reset
           </button>
         </div>
       </div>

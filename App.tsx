@@ -215,13 +215,18 @@ const App: React.FC = () => {
         profile={profile}
         setMode={(m) => setProfile(p => ({ ...p, selectedMode: m }))}
         onReset={() => {
-          if (confirm("Initiate total system reset? This clears all neural session data.")) {
+          if (confirm("WARNING: Complete System Reset? This will erase all local neural data and return to factory state.")) {
             localStorage.clear();
-            window.location.reload();
+            sessionStorage.clear();
+            window.location.href = '/'; // Hard reload to clear everything
           }
         }}
         onUpgrade={() => setIsPremiumModalOpen(true)}
-        onLogout={handleLogout}
+        onLogout={() => {
+          // Premium Logout: Clear session state but keep preferences if needed, or just standard logout
+          setProfile(prev => ({ ...prev, isLoggedIn: false }));
+          setCurrentChatId(null);
+        }}
         savedChats={savedChats}
         onDeleteChat={(id) => {
           setSavedChats(prev => prev.filter(c => c.id !== id));

@@ -16,9 +16,10 @@ app.use(express.json());
 const DOMAIN = 'http://localhost:3001';
 
 app.post('/create-checkout-session', async (req, res) => {
-    // DEMO MODE: If no Stripe key is configured, return a fake success URL for testing
+    // CHECK FOR STRIPE KEYS
     if (!stripe || !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === 'PLACEHOLDER') {
-        console.log('Demo Mode: Simulating Stripe Checkout');
+        console.log('⚠️  STRIPE_SECRET_KEY is missing. Using DEMO MODE.');
+        console.log('👉  To enable real payments, add STRIPE_SECRET_KEY to your .env.local file.');
         return res.json({ url: `${DOMAIN}?success=true&demo=true` });
     }
 
