@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-dotenv.config({ path: '../.env.local' });
+dotenv.config({ path: '.env.local' });
 
 const app = express();
 // Initialize Stripe only if key is present
