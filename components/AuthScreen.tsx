@@ -1,50 +1,424 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Github, Chrome, Shield, Zap, Sparkles, LogIn, UserPlus, ArrowRight, Fingerprint, Lock } from 'lucide-react';
+import { Mail, Github, Chrome, Shield, Zap, Sparkles, LogIn, UserPlus, ArrowRight, Fingerprint, Lock, KeyRound, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
 
+const API_BASE = 'http://localhost:4242';
+
 interface AuthScreenProps {
-  onLogin: (username: string, email: string) => void;
+  onLogin: (userData: {
+    id: string;
+    username: string;
+    email: string;
+    xp: number;
+    level: number;
+    streak: number;
+    tier: 'free' | 'premium';
+    dailyUsage: number;
+    lastUsageReset: string;
+  }) => void;
 }
+
+type AuthStep = 'form' | 'verification' | 'social-verify';
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
-  const [isVerifyingSocial, setIsVerifyingSocial] = useState(false);
+  const [step, setStep] = useState<AuthStep>('form');
   const [socialProvider, setSocialProvider] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [demoCode, setDemoCode] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate auth lag for "Professional" feel
-    setTimeout(() => {
-      onLogin(username || email.split('@')[0] || 'User', email);
+    setError('');
+
+    try {
+      if (isLogin) {
+        // LOGIN
+        const response = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Login failed');
+        }
+
+        onLogin(data.user);
+      } else {
+        // SIGNUP - Send verification code
+        const response = await fetch(`${API_BASE}/auth/send-verification`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, username })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to send verification');
+        }
+
+        // In demo mode, show the code
+        if (data.demoCode) {
+          setDemoCode(data.demoCode);
+        }
+
+        setStep('verification');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/verify-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: verificationCode })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Verification failed');
+      }
+
+      onLogin(data.user);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const googleLogin = useGoogleLogin({
-    onSuccess: (tokenResponse) => {
-      setSocialProvider('Google');
-      setIsVerifyingSocial(true);
-      // In a real app, you'd fetch user info using the token
-      // For now, we proceed to email entry as requested by user
+    onSuccess: async (tokenResponse) => {
+      setLoading(true);
+      setError('');
+      try {
+        const response = await fetch(`${API_BASE}/auth/google`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken: tokenResponse.access_token })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Google login failed');
+        }
+
+        onLogin(data.user);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
     },
-    onError: () => console.log('Login Failed'),
+    onError: () => {
+      setError('Google login failed. Please try again.');
+    },
   });
 
   const handleSocialInit = (provider: string) => {
+    setError('');
     if (provider === 'Google') {
       googleLogin();
     } else {
       setSocialProvider(provider);
-      setIsVerifyingSocial(true);
+      setStep('social-verify');
     }
   };
+
+  const renderVerificationStep = () => (
+    <motion.div
+      key="verification"
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className="space-y-8"
+    >
+      <div className="text-center space-y-4">
+        <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto border border-white/10 shadow-2xl relative">
+          <Mail className="w-10 h-10 text-white" />
+          <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center border-4 border-[#0a0a12]">
+            <CheckCircle2 className="w-4 h-4 text-white" />
+          </div>
+        </div>
+        <div>
+          <h3 className="text-2xl font-black tracking-tight">Check Your Email</h3>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">
+            Verification Code Sent to {email}
+          </p>
+        </div>
+      </div>
+
+      {demoCode && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-center">
+          <p className="text-amber-400 text-xs font-bold uppercase tracking-widest mb-2">Demo Mode - Your Code:</p>
+          <p className="text-3xl font-black tracking-[0.5em] text-white">{demoCode}</p>
+        </div>
+      )}
+
+      <form onSubmit={handleVerifyCode} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">
+            Enter 6-Digit Code
+          </label>
+          <input
+            type="text"
+            placeholder="000000"
+            value={verificationCode}
+            onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-2xl font-black tracking-[0.5em] text-center placeholder:text-slate-700"
+            maxLength={6}
+            required
+            autoFocus
+          />
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/10 rounded-xl p-3">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading || verificationCode.length !== 6}
+          className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-[1.02] active:scale-[0.98] py-5 rounded-2xl font-black text-xs tracking-widest transition-all shadow-2xl shadow-indigo-500/20 flex items-center justify-center gap-3 group disabled:opacity-50"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              VERIFYING...
+            </>
+          ) : (
+            <>
+              VERIFY & CREATE ACCOUNT
+              <KeyRound className="w-4 h-4" />
+            </>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setStep('form');
+            setVerificationCode('');
+            setDemoCode('');
+            setError('');
+          }}
+          className="w-full text-slate-500 text-[10px] font-black uppercase hover:text-red-400 transition-colors tracking-[0.2em] py-4"
+        >
+          BACK TO SIGNUP
+        </button>
+      </form>
+    </motion.div>
+  );
+
+  const renderSocialVerify = () => (
+    <motion.div
+      key="social-verify"
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="space-y-8"
+    >
+      <div className="text-center space-y-4">
+        <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto border border-white/10 shadow-2xl relative">
+          {socialProvider === 'Google' ? <Chrome className="w-10 h-10 text-indigo-400" /> : <Github className="w-10 h-10 text-purple-400" />}
+          <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center border-4 border-[#0a0a12]">
+            <Fingerprint className="w-4 h-4 text-white" />
+          </div>
+        </div>
+        <div>
+          <h3 className="text-2xl font-black tracking-tight">{socialProvider} Verified</h3>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Finalizing Neural Map</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Confirm Neural ID</label>
+          <input
+            type="email"
+            placeholder="email@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-bold placeholder:text-slate-600"
+            required
+            autoFocus
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Pilot Name</label>
+          <input
+            type="text"
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-bold placeholder:text-slate-600"
+          />
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/10 rounded-xl p-3">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-white text-black py-5 rounded-2xl font-black text-xs tracking-widest transition-all shadow-2xl flex items-center justify-center gap-3 group mt-4"
+        >
+          {loading ? 'ESTABLISHING...' : 'ENGAGE NEURAL LINK'}
+          {!loading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStep('form')}
+          className="w-full text-slate-500 text-[10px] font-black uppercase hover:text-red-400 transition-colors tracking-[0.2em] py-4"
+        >
+          ABORT LINKAGE
+        </button>
+      </form>
+    </motion.div>
+  );
+
+  const renderForm = () => (
+    <motion.div
+      key="standard-auth"
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 20 }}
+    >
+      <div className="flex bg-white/5 p-1.5 rounded-2xl mb-10 border border-white/5">
+        <button
+          onClick={() => { setIsLogin(true); setError(''); }}
+          className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-xs font-black rounded-xl transition-all ${isLogin ? 'bg-white text-black shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          <LogIn className="w-4 h-4" /> LOGIN
+        </button>
+        <button
+          onClick={() => { setIsLogin(false); setError(''); }}
+          className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-xs font-black rounded-xl transition-all ${!isLogin ? 'bg-white text-black shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          <UserPlus className="w-4 h-4" /> SIGN UP
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4 mb-10">
+        <AnimatePresence mode="wait">
+          {!isLogin && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="overflow-hidden"
+            >
+              <input
+                type="text"
+                placeholder="Neural Link Name"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-bold placeholder:text-slate-600 mb-4"
+                required={!isLogin}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <input
+          type="email"
+          placeholder="Email Address"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-bold placeholder:text-slate-600"
+          required
+        />
+
+        <input
+          type="password"
+          placeholder="Security Key"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-bold placeholder:text-slate-600"
+          required
+        />
+
+        {error && (
+          <div className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/10 rounded-xl p-3">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-[1.02] active:scale-[0.98] py-5 rounded-2xl font-black text-xs tracking-widest transition-all shadow-2xl shadow-indigo-500/20 flex items-center justify-center gap-3 group disabled:opacity-50"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {isLogin ? 'AUTHENTICATING...' : 'SENDING CODE...'}
+            </>
+          ) : (
+            <>
+              {isLogin ? 'ESTABLISH LINK' : 'SEND VERIFICATION CODE'}
+              <Zap className="w-4 h-4 group-hover:animate-pulse" />
+            </>
+          )}
+        </button>
+      </form>
+
+      <div className="relative mb-10">
+        <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/5"></span></div>
+        <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-[#0a0a12] px-4 text-slate-500 font-black tracking-[0.3em]">External Sync</span></div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-5">
+        <button
+          onClick={() => handleSocialInit('Google')}
+          disabled={loading}
+          className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 hover:bg-white/10 py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all text-slate-300 disabled:opacity-50"
+        >
+          <Chrome className="w-4 h-4 text-indigo-400" />
+          GOOGLE
+        </button>
+        <button
+          onClick={() => handleSocialInit('GitHub')}
+          disabled={loading}
+          className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 hover:bg-white/10 py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all text-slate-300 disabled:opacity-50"
+        >
+          <Github className="w-4 h-4 text-purple-400" />
+          GITHUB
+        </button>
+      </div>
+    </motion.div>
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#050507] overflow-hidden">
@@ -75,167 +449,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
           </div>
 
           <AnimatePresence mode="wait">
-            {!isVerifyingSocial ? (
-              <motion.div
-                key="standard-auth"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-              >
-                <div className="flex bg-white/5 p-1.5 rounded-2xl mb-10 border border-white/5">
-                  <button
-                    onClick={() => setIsLogin(true)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-xs font-black rounded-xl transition-all ${isLogin ? 'bg-white text-black shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}
-                  >
-                    <LogIn className="w-4 h-4" /> LOGIN
-                  </button>
-                  <button
-                    onClick={() => setIsLogin(false)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-xs font-black rounded-xl transition-all ${!isLogin ? 'bg-white text-black shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}
-                  >
-                    <UserPlus className="w-4 h-4" /> SIGN UP
-                  </button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4 mb-10">
-                  <AnimatePresence mode="wait">
-                    {!isLogin && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="overflow-hidden"
-                      >
-                        <input
-                          type="text"
-                          placeholder="Neural Link Name"
-                          value={username}
-                          onChange={(e) => setUsername(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-bold placeholder:text-slate-600 mb-4"
-                          required
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <input
-                    type="email"
-                    placeholder="Email Address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-bold placeholder:text-slate-600"
-                    required
-                  />
-
-                  <input
-                    type="password"
-                    placeholder="Security Key"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-bold placeholder:text-slate-600"
-                    required
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-[1.02] active:scale-[0.98] py-5 rounded-2xl font-black text-xs tracking-widest transition-all shadow-2xl shadow-indigo-500/20 flex items-center justify-center gap-3 group disabled:opacity-50"
-                  >
-                    {loading ? 'SYNCHRONIZING...' : (isLogin ? 'ESTABLISH LINK' : 'INITIALIZE SYSTEM')}
-                    {!loading && <Zap className="w-4 h-4 group-hover:animate-pulse" />}
-                  </button>
-                </form>
-
-                <div className="relative mb-10">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/5"></span></div>
-                  <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-[#0a0a12] px-4 text-slate-500 font-black tracking-[0.3em]">External Sync</span></div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-5">
-                  <button
-                    onClick={() => handleSocialInit('Google')}
-                    className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 hover:bg-white/10 py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all text-slate-300"
-                  >
-                    <Chrome className="w-4 h-4 text-indigo-400" />
-                    GOOGLE
-                  </button>
-                  <button
-                    onClick={() => handleSocialInit('GitHub')}
-                    className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 hover:bg-white/10 py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all text-slate-300"
-                  >
-                    <Github className="w-4 h-4 text-purple-400" />
-                    GITHUB
-                  </button>
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="social-verify"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="space-y-8"
-              >
-                <div className="text-center space-y-4">
-                  <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto border border-white/10 shadow-2xl relative">
-                    {socialProvider === 'Google' ? <Chrome className="w-10 h-10 text-indigo-400" /> : <Github className="w-10 h-10 text-purple-400" />}
-                    <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center border-4 border-[#0a0a12]">
-                      <Fingerprint className="w-4 h-4 text-white" />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black tracking-tight">{socialProvider} Verified</h3>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Finalizing Neural Map</p>
-                  </div>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Confirm Neural ID</label>
-                    <input
-                      type="email"
-                      placeholder="email@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-bold placeholder:text-slate-600"
-                      required
-                      autoFocus
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Pilot Name</label>
-                    <input
-                      type="text"
-                      placeholder="Username"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4.5 px-6 focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm font-bold placeholder:text-slate-600"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-white text-black py-5 rounded-2xl font-black text-xs tracking-widest transition-all shadow-2xl flex items-center justify-center gap-3 group mt-4"
-                  >
-                    {loading ? 'ESTABLISHING...' : 'ENGAGE NEURAL LINK'}
-                    {!loading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsVerifyingSocial(false)}
-                    className="w-full text-slate-500 text-[10px] font-black uppercase hover:text-red-400 transition-colors tracking-[0.2em] py-4"
-                  >
-                    ABORT LINKAGE
-                  </button>
-                </form>
-              </motion.div>
-            )}
+            {step === 'form' && renderForm()}
+            {step === 'verification' && renderVerificationStep()}
+            {step === 'social-verify' && renderSocialVerify()}
           </AnimatePresence>
         </div>
 
         <p className="text-center mt-10 text-slate-600 text-[10px] font-black tracking-[0.3em] uppercase opacity-50">
-          MUZGPT OS v4.1.0 // Cluster: <span className="text-emerald-500">Secure</span>
+          MUZGPT OS v4.2.0 // Cluster: <span className="text-emerald-500">Secure</span>
         </p>
       </motion.div>
     </div>

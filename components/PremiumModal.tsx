@@ -8,9 +8,10 @@ interface PremiumModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    userId?: string;
 }
 
-const PremiumModal: React.FC<PremiumModalProps> = ({ isOpen, onClose, onSuccess }) => {
+const PremiumModal: React.FC<PremiumModalProps> = ({ isOpen, onClose, onSuccess, userId }) => {
     const [loading, setLoading] = useState(false);
 
     const perks = [
@@ -28,6 +29,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ isOpen, onClose, onSuccess 
                 headers: {
                     'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({ userId }),
             });
 
             const session = await response.json();

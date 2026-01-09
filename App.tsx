@@ -8,7 +8,9 @@ import { Message, UserProfile, AIMode, XPEvent, ChatSession } from './types';
 import { generateResponseStream } from './geminiService';
 import { DAILY_LIMITS } from './constants';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Trophy } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
+
+const API_BASE = 'http://localhost:4242';
 
 const INITIAL_PROFILE: UserProfile = {
   id: '',
@@ -19,7 +21,7 @@ const INITIAL_PROFILE: UserProfile = {
   lastActive: Date.now(),
   completedTasks: 0,
   selectedMode: 'general',
-  tier: 'free',
+  tier: 'free', // ALWAYS FREE BY DEFAULT
   dailyUsage: 0,
   lastUsageReset: new Date().toDateString(),
   isLoggedIn: false
@@ -30,6 +32,7 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('muzgpt_profile');
     if (saved) {
       const parsed = JSON.parse(saved);
+      // Reset daily usage if new day
       const today = new Date().toDateString();
       if (parsed.lastUsageReset !== today) {
         parsed.dailyUsage = 0;
@@ -78,44 +81,103 @@ const App: React.FC = () => {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     if (query.get('success')) {
-      handlePremiumSuccess();
+      const userId = query.get('userId') || profile.id;
+      if (userId) {
+        // Verify and upgrade on backend
+        handlePremiumSuccess(userId);
+      }
       // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, []);
+  }, [profile.id]);
 
-  const handleLogin = (username: string, email: string) => {
+  // Sync user data from backend on login
+  const syncUserFromBackend = async (userId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/auth/user/${userId}`);
+      if (response.ok) {
+        const userData = await response.json();
+        setProfile(prev => ({
+          ...prev,
+          ...userData,
+          isLoggedIn: true,
+          lastActive: Date.now()
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to sync user data:', error);
+    }
+  };
+
+  // Handle login from AuthScreen
+  const handleLogin = (userData: {
+    id: string;
+    username: string;
+    email: string;
+    xp: number;
+    level: number;
+    streak: number;
+    tier: 'free' | 'premium';
+    dailyUsage: number;
+    lastUsageReset: string;
+  }) => {
     setProfile(prev => ({
       ...prev,
-      id: Math.random().toString(36).substr(2, 9),
-      username,
-      email,
-      isLoggedIn: true
+      id: userData.id,
+      username: userData.username,
+      email: userData.email,
+      xp: userData.xp,
+      level: userData.level,
+      streak: userData.streak,
+      tier: userData.tier, // This comes from backend - will be 'free' for new users
+      dailyUsage: userData.dailyUsage,
+      lastUsageReset: userData.lastUsageReset,
+      isLoggedIn: true,
+      lastActive: Date.now()
     }));
-    addXP(50, "Neural Link Established");
+
+    // Only show XP toast for new users (xp === 50 is welcome bonus)
+    if (userData.xp === 50) {
+      addXP(0, "Neural Link Established");
+    }
   };
 
   const handleLogout = () => {
-    // Premium Logout: No confirmation, just a smooth exit
     setProfile(prev => ({ ...prev, isLoggedIn: false }));
     setCurrentChatId(null);
   };
 
   const addXP = useCallback((amount: number, reason: string) => {
-    setProfile(prev => {
-      const newXp = prev.xp + amount;
-      const newLevel = Math.floor(newXp / 100) + 1;
-      const id = Math.random().toString(36).substring(7);
-      setXpToasts(current => [...current, { amount, reason, id }]);
-      setTimeout(() => setXpToasts(current => current.filter(t => t.id !== id)), 4000);
+    if (amount > 0) {
+      setProfile(prev => {
+        const newXp = prev.xp + amount;
+        const newLevel = Math.floor(newXp / 100) + 1;
 
-      return {
-        ...prev,
-        xp: newXp,
-        level: newLevel,
-        completedTasks: prev.completedTasks + (amount >= 20 ? 1 : 0)
-      };
-    });
+        // Sync to backend
+        if (prev.id) {
+          fetch(`${API_BASE}/auth/update-user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: prev.id,
+              updates: { xp: newXp, level: newLevel }
+            })
+          }).catch(console.error);
+        }
+
+        return {
+          ...prev,
+          xp: newXp,
+          level: newLevel,
+          completedTasks: prev.completedTasks + (amount >= 20 ? 1 : 0)
+        };
+      });
+    }
+
+    // Show toast
+    const id = Math.random().toString(36).substring(7);
+    setXpToasts(current => [...current, { amount, reason, id }]);
+    setTimeout(() => setXpToasts(current => current.filter(t => t.id !== id)), 4000);
   }, []);
 
   const handleSend = async (text: string) => {
@@ -160,7 +222,21 @@ const App: React.FC = () => {
         }
       );
 
-      setProfile(prev => ({ ...prev, dailyUsage: prev.dailyUsage + 1 }));
+      const newUsage = profile.dailyUsage + 1;
+      setProfile(prev => ({ ...prev, dailyUsage: newUsage }));
+
+      // Sync usage to backend
+      if (profile.id) {
+        fetch(`${API_BASE}/auth/update-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: profile.id,
+            updates: { dailyUsage: newUsage }
+          })
+        }).catch(console.error);
+      }
+
       addXP(15, "Neural Sync Success");
 
       if (profile.isLoggedIn) {
@@ -200,7 +276,21 @@ const App: React.FC = () => {
     setMessages([]);
   };
 
-  const handlePremiumSuccess = () => {
+  const handlePremiumSuccess = async (userId?: string) => {
+    const id = userId || profile.id;
+    if (id) {
+      try {
+        // Verify with backend
+        await fetch(`${API_BASE}/auth/upgrade-premium`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: id })
+        });
+      } catch (error) {
+        console.error('Upgrade error:', error);
+      }
+    }
+
     setProfile(prev => ({ ...prev, tier: 'premium' }));
     addXP(250, "Premium Status Active");
   };
@@ -218,15 +308,11 @@ const App: React.FC = () => {
           if (confirm("WARNING: Complete System Reset? This will erase all local neural data and return to factory state.")) {
             localStorage.clear();
             sessionStorage.clear();
-            window.location.href = '/'; // Hard reload to clear everything
+            window.location.href = '/';
           }
         }}
         onUpgrade={() => setIsPremiumModalOpen(true)}
-        onLogout={() => {
-          // Premium Logout: Clear session state but keep preferences if needed, or just standard logout
-          setProfile(prev => ({ ...prev, isLoggedIn: false }));
-          setCurrentChatId(null);
-        }}
+        onLogout={handleLogout}
         savedChats={savedChats}
         onDeleteChat={(id) => {
           setSavedChats(prev => prev.filter(c => c.id !== id));
@@ -274,7 +360,8 @@ const App: React.FC = () => {
       <PremiumModal
         isOpen={isPremiumModalOpen}
         onClose={() => setIsPremiumModalOpen(false)}
-        onSuccess={handlePremiumSuccess}
+        onSuccess={() => handlePremiumSuccess()}
+        userId={profile.id}
       />
     </div>
   );
