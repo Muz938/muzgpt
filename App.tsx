@@ -10,7 +10,7 @@ import { DAILY_LIMITS } from './constants';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 
-const API_BASE = 'http://localhost:4242';
+const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:4242';
 
 const INITIAL_PROFILE: UserProfile = {
   id: '',

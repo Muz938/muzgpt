@@ -23,8 +23,9 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ isOpen, onClose, onSuccess,
 
     const handleCheckout = async () => {
         setLoading(true);
+        const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:4242';
         try {
-            const response = await fetch('http://localhost:4242/create-checkout-session', {
+            const response = await fetch(`${API_BASE}/create-checkout-session`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

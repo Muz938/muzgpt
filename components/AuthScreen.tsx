@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Github, Chrome, Shield, Zap, Sparkles, LogIn, UserPlus, ArrowRight, Fingerprint, Lock, KeyRound, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
 
-const API_BASE = 'http://localhost:4242';
+const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:4242';
 
 interface AuthScreenProps {
   onLogin: (userData: {
