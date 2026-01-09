@@ -74,6 +74,16 @@ const App: React.FC = () => {
     }
   }, [currentChatId, savedChats]);
 
+  // Check for Premium Success from Stripe Redirect
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get('success')) {
+      handlePremiumSuccess();
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   const handleLogin = (username: string, email: string) => {
     setProfile(prev => ({
       ...prev,
@@ -86,10 +96,9 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    if (window.confirm("Disconnect from MUZGPT? Session clusters are safe in local storage.")) {
-      setProfile(prev => ({ ...prev, isLoggedIn: false }));
-      setCurrentChatId(null);
-    }
+    // Premium Logout: No confirmation, just a smooth exit
+    setProfile(prev => ({ ...prev, isLoggedIn: false }));
+    setCurrentChatId(null);
   };
 
   const addXP = useCallback((amount: number, reason: string) => {
@@ -221,6 +230,7 @@ const App: React.FC = () => {
             setMessages([]);
           }
         }}
+        onSelectChat={(id) => setCurrentChatId(id)}
         currentChatId={currentChatId}
         onNewChat={handleNewChat}
       />

@@ -6,7 +6,8 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '../.env.local' });
 
 const app = express();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+// Initialize Stripe only if key is present
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 app.use(cors());
 app.use(express.static('public'));
@@ -15,7 +16,14 @@ app.use(express.json());
 const DOMAIN = 'http://localhost:3001';
 
 app.post('/create-checkout-session', async (req, res) => {
+    // DEMO MODE: If no Stripe key is configured, return a fake success URL for testing
+    if (!stripe || !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === 'PLACEHOLDER') {
+        console.log('Demo Mode: Simulating Stripe Checkout');
+        return res.json({ url: `${DOMAIN}?success=true&demo=true` });
+    }
+
     try {
+        if (!stripe) throw new Error("Stripe not initialized");
         const session = await stripe.checkout.sessions.create({
             line_items: [
                 {
