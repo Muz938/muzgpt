@@ -1,0 +1,7 @@
+{
+  "name": "MUZGPT - Next Gen AI",
+  "description": "A gamified, multi-modal AI assistant for students and founders, featuring General, Student, Game, and Startup modes with XP tracking.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
