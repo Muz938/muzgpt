@@ -13,5 +13,35 @@
     "createdAt": 1767949218686,
     "lastActive": 1768372391332,
     "emailVerified": true
+  },
+  {
+    "id": "7030d1ae-e766-42d4-94b5-9483bb62daab",
+    "email": "testuser999@example.com",
+    "passwordHash": "9bf83bc503465c260192498cf23e352ff75aab258f55762d7165f6efe06fe5cc",
+    "username": "TestUser999",
+    "xp": 50,
+    "level": 1,
+    "streak": 1,
+    "tier": "free",
+    "dailyUsage": 0,
+    "lastUsageReset": "Tue Jan 13 2026",
+    "createdAt": 1768372889689,
+    "lastActive": 1768372889689,
+    "emailVerified": true
+  },
+  {
+    "id": "b639d32a-7a6d-4f39-8198-89b05de4a6ed",
+    "email": "fulltest@test.com",
+    "passwordHash": "9bf83bc503465c260192498cf23e352ff75aab258f55762d7165f6efe06fe5cc",
+    "username": "FullTest",
+    "xp": 50,
+    "level": 1,
+    "streak": 1,
+    "tier": "free",
+    "dailyUsage": 0,
+    "lastUsageReset": "Tue Jan 13 2026",
+    "createdAt": 1768372933094,
+    "lastActive": 1768372941847,
+    "emailVerified": true
   }
 ]

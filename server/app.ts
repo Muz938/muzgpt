@@ -129,24 +129,45 @@ app.post('/auth/send-verification', async (req: Request, res: Response) => {
         passwordHash: hashPassword(password)
     });
 
+    let emailSent = false;
     if (resend) {
         try {
             await resend.emails.send({
                 from: 'MUZGPT <onboarding@resend.dev>',
                 to: email,
                 subject: 'Your MUZGPT Verification Code',
-                html: `<h1>${code}</h1>`
+                html: `
+                    <div style="font-family: 'Segoe UI', sans-serif; max-width: 500px; margin: 0 auto; padding: 40px; background: linear-gradient(135deg, #0a0a12 0%, #1a1a2e 100%); border-radius: 20px;">
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h1 style="color: #fff; font-size: 32px; margin: 0;">MUZGPT</h1>
+                            <p style="color: #6366f1; font-size: 12px; letter-spacing: 3px; margin-top: 5px;">NEURAL VERIFICATION</p>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.05); border-radius: 15px; padding: 30px; text-align: center;">
+                            <p style="color: #94a3b8; margin: 0 0 20px;">Your verification code is:</p>
+                            <div style="font-size: 42px; font-weight: bold; letter-spacing: 8px; color: #6366f1; padding: 20px;">
+                                ${code}
+                            </div>
+                            <p style="color: #64748b; font-size: 12px; margin-top: 20px;">This code expires in 10 minutes.</p>
+                        </div>
+                    </div>
+                `
             });
-            console.log(`✅ Verification code sent to ${email}`);
-        } catch (error) {
-            console.error('Failed to send email:', error);
+            emailSent = true;
+            console.log(`✅ Verification email sent to ${email}: ${code}`);
+        } catch (error: any) {
+            console.error(`❌ Failed to send email to ${email}:`, error?.message || error);
+            // Email failed but we still have the code stored
         }
+    } else {
+        console.log(`📧 DEMO MODE - Verification code for ${email}: ${code}`);
     }
 
+    // ALWAYS return the code so users can sign up even if email fails
+    // In production with verified domain, you would NOT return the code
     res.json({
         success: true,
-        message: 'Verification code sent',
-        ...(!resend ? { demoCode: code } : {})
+        message: emailSent ? 'Verification code sent to your email!' : 'Check below for your code',
+        demoCode: code // Always show code since Resend free tier is limited
     });
 });
 
