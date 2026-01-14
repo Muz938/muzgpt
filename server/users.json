@@ -1,0 +1,17 @@
+[
+  {
+    "id": "c59a3234-5eb4-4553-9609-d08e4e12d118",
+    "email": "muzzy.0938@gmail.com",
+    "passwordHash": "9bf83bc503465c260192498cf23e352ff75aab258f55762d7165f6efe06fe5cc",
+    "username": "TestUser",
+    "xp": 50,
+    "level": 1,
+    "streak": 1,
+    "tier": "free",
+    "dailyUsage": 0,
+    "lastUsageReset": "Fri Jan 09 2026",
+    "createdAt": 1767949218686,
+    "lastActive": 1768372391332,
+    "emailVerified": true
+  }
+]

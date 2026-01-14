@@ -252,4 +252,60 @@ app.get('/auth/user/:userId', async (req: Request, res: Response) => {
     res.json(user ? user : { error: 'Not found' });
 });
 
+// ============================================================================
+// STRIPE PAYMENT ENDPOINTS
+// ============================================================================
+app.post('/create-checkout-session', async (req: Request, res: Response) => {
+    const { userId } = req.body;
+
+    if (!stripe || !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === 'PLACEHOLDER') {
+        console.log('⚠️  STRIPE_SECRET_KEY is missing. Using DEMO MODE.');
+        return res.json({ url: `${DOMAIN}?success=true&demo=true` });
+    }
+
+    try {
+        const session = await stripe.checkout.sessions.create({
+            line_items: [
+                {
+                    price_data: {
+                        currency: 'usd',
+                        product_data: {
+                            name: 'MUZGPT Premium',
+                            description: 'Unlock unlimited messages, Startup Mode, and Private Compute.',
+                        },
+                        unit_amount: 1000, // $10.00
+                    },
+                    quantity: 1,
+                },
+            ],
+            mode: 'payment',
+            success_url: `${DOMAIN}?success=true&userId=${userId || ''}`,
+            cancel_url: `${DOMAIN}?canceled=true`,
+            metadata: {
+                userId: userId || ''
+            }
+        });
+
+        res.json({ url: session.url });
+    } catch (error) {
+        console.error('Error creating checkout session:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Manual upgrade endpoint (for verifying payment without webhook)
+app.post('/auth/upgrade-premium', async (req: Request, res: Response) => {
+    const { userId } = req.body;
+
+    const users = loadUsers();
+    const userIndex = users.findIndex(u => u.id === userId);
+    if (userIndex !== -1) {
+        users[userIndex].tier = 'premium';
+        saveUsers(users);
+        console.log(`🎉 User ${userId} upgraded to PREMIUM!`);
+        return res.json({ success: true, tier: 'premium' });
+    }
+    return res.status(404).json({ error: 'User not found' });
+});
+
 export default app;
