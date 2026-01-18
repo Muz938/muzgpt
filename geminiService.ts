@@ -5,14 +5,14 @@ import { SYSTEM_INSTRUCTIONS } from "./constants";
 
 const getAI = () => {
   // @ts-ignore
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '').trim();
+  const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || '').trim();
   return new GoogleGenerativeAI(apiKey);
 };
 
 // sophisticated Demo Brain for when API key is missing
 const DEMO_RESPONSES: Record<AIMode, string[]> = {
   general: [
-    "MUZGPT Neural Sync: I'm currently running on local backup compute. My full intelligence requires an active GEMINI_API_KEY in your .env.local file. However, I can still guide you through my features!",
+    "MUZGPT Neural Sync: I'm currently running on local backup compute. My full intelligence requires an active VITE_GEMINI_API_KEY in your .env.local file. However, I can still guide you through my features!",
     "Searching local clusters... It seems the primary neural link is offline. To enable my real-time adaptive thinking, please add your Gemini API key to .env.local. What can I help you with in the meantime?",
     "System Update: I've detected a placeholder API key. I'm MUZGPT, and once you connect my full brain via AI Studio, I'll be able to solve complex problems, write code, and more. Try asking about my 'Student' or 'Startup' modes!"
   ],
@@ -37,7 +37,7 @@ export const generateResponseStream = async (
   onChunk: (chunk: string) => void
 ) => {
   // @ts-ignore
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '').trim();
+  const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || '').trim();
 
   // High-fidelity fallback for demo purposes
   if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY' || apiKey.length < 10) {
